@@ -1,35 +1,25 @@
 const std = @import("std");
+const mem = std.mem;
 const c = @import("c.zig");
 
-fn to_c_string(s: []const u8) []const u8 {
-    var result = std.heap.direct_allocator.alloc(u8, s.len + 1) catch unreachable;
-    for (result) |*char, i| {
-        if (i == s.len) {
-            char.* = 0;
-        } else {
-            char.* = s[i];
-        }
-    }
-    return result;
-}
-
-pub fn serialize_imgui(variable: var, name: []const u8) void {
-    const T = @typeOf(variable);
+pub fn serialize_imgui(variable: anytype, name: []const u8) void {
+    const allocator = std.heap.page_allocator;
+    const T = @TypeOf(variable);
     const type_name = @typeName(T);
-    const c_type_name = to_c_string(type_name);
-    defer std.heap.direct_allocator.free(c_type_name);
-    const c_variable_name = to_c_string(name);
-    defer std.heap.direct_allocator.free(c_variable_name);
+    const c_type_name = allocator.dupeZ(u8, type_name) catch unreachable;
+    defer allocator.free(c_type_name);
+    const c_variable_name = allocator.dupeZ(u8, name) catch unreachable;
+    defer allocator.free(c_variable_name);
     switch (@typeInfo(T)) {
         .ComptimeInt, .Int => {
-            c.igText(c"%s:%s = %i", &c_variable_name[0], &c_type_name[0], @intCast(c_int, variable));
+            c.igText("%s:%s = %i", &c_variable_name[0], &c_type_name[0], @intCast(c_int, variable));
         },
         .Float => {
-            c.igText(c"%s:%s = %f", &c_variable_name[0], &c_type_name[0], variable);
+            c.igText("%s:%s = %f", &c_variable_name[0], &c_type_name[0], variable);
         },
         .Void => {},
         .Bool => {
-            c.igText(c"%s:%s = %s", &c_variable_name[0], &c_type_name[0], if (variable) c"true" else c"false");
+            c.igText("%s:%s = %s", &c_variable_name[0], &c_type_name[0], if (variable) "true" else "false");
         },
         .Optional => {
             if (variable) |v| {
@@ -38,7 +28,7 @@ pub fn serialize_imgui(variable: var, name: []const u8) void {
                 serialize_imgui(v, "");
                 c.igUnindent(1.0);
             } else {
-                c.igText(c"%s:%s = null", &c_variable_name[0], &c_type_name[0]);
+                c.igText("%s:%s = null", &c_variable_name[0], &c_type_name[0]);
             }
         },
         .ErrorUnion => {},
@@ -46,12 +36,11 @@ pub fn serialize_imgui(variable: var, name: []const u8) void {
         .Enum => {},
         .Union => {},
         .Struct => {
-            if (c.igCollapsingHeader(c"Struct", 0)) {
-                comptime var field_i = 0;
-                inline while (field_i < @memberCount(T)) : (field_i += 1) {
-                    const member_name = @memberName(T, field_i);
+            if (c.igCollapsingHeader_TreeNodeFlags("Struct", 0)) {
+                comptime var fields = std.meta.fields(T);
+                inline for (fields) |field| {
                     c.igIndent(1.0);
-                    serialize_imgui(@field(variable, member_name), member_name);
+                    serialize_imgui(@field(variable, field.name), field.name);
                     c.igUnindent(1.0);
                 }
             }
