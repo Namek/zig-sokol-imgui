@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const app_gfx_glue = @import("app_gfx_glue.zig");
 const c = @import("c.zig");
 const serialize = @import("serialize.zig");
 
@@ -18,7 +19,8 @@ const State = struct {
 var state: State = undefined;
 
 export fn init() void {
-    const desc = zero_struct(c.sg_desc);
+    var desc = zero_struct(c.sg_desc);
+    desc.context = app_gfx_glue.context();
     c.sg_setup(&desc);
 
     c.stm_setup();
@@ -39,32 +41,26 @@ export fn init() void {
     var buffer_desc = zero_struct(c.sg_buffer_desc);
     buffer_desc.size = vertices.len * @sizeOf(f32);
     buffer_desc.data.ptr = &vertices[0];
-    buffer_desc.data.size = 0;
+    buffer_desc.data.size = @sizeOf(@TypeOf(vertices));
     buffer_desc.type = c.SG_BUFFERTYPE_VERTEXBUFFER;
     buffer_desc.label = "triangle_vertices";
     state.main_bindings.vertex_buffers[0] = c.sg_make_buffer(&buffer_desc);
 
     var shader_desc = zero_struct(c.sg_shader_desc);
-    shader_desc.vs.source =
-        \\#version 330
-        \\in vec3 vertex_position;
-        \\in vec4 in_color;
-        \\out vec4 color;
-        \\void main(void)
-        \\{
-        \\   gl_Position = vec4(vertex_position, 1.0);
-        \\   color = in_color;
-        \\}
-    ;
-    shader_desc.fs.source =
-        \\#version 330
-        \\out vec4 frag_color;
-        \\in vec4 color;
-        \\void main(void)
-        \\{
-        \\    frag_color = color;
-        \\}
-    ;
+    shader_desc.vs.source = switch(c.sg_query_backend()) {
+        // .D3D11       => @embedFile("shaders/offscreen_vs.hlsl"),
+        c.SG_BACKEND_GLCORE33    => @embedFile("shaders/vs.v330.glsl"),
+        c.SG_BACKEND_GLES2       => @embedFile("shaders/vs.v100.glsl"),
+        c.SG_BACKEND_METAL_MACOS, c.SG_BACKEND_METAL_SIMULATOR => @embedFile("shaders/vs.metal"),
+        else => unreachable,
+    };
+    shader_desc.fs.source = switch(c.sg_query_backend()) {
+        // .D3D11       => @embedFile("shaders/offscreen_fs.hlsl"),
+        c.SG_BACKEND_GLCORE33    => @embedFile("shaders/fs.v330.glsl"),
+        c.SG_BACKEND_GLES2       => @embedFile("shaders/fs.v100.glsl"),
+        c.SG_BACKEND_METAL_MACOS, c.SG_BACKEND_METAL_SIMULATOR => @embedFile("shaders/fs.metal"),
+        else => unreachable,
+    };
 
     const shader = c.sg_make_shader(&shader_desc);
 
@@ -86,12 +82,11 @@ var f: f32 = 0.0;
 export fn update() void {
     const width = c.sapp_width();
     const height = c.sapp_height();
-    const dt = c.stm_sec(c.stm_laptime(&last_time));
-    var frame=c.simgui_frame_desc_t{
+    var frame = c.simgui_frame_desc_t{
         .dpi_scale = 1,
         .width = width,
         .height = height,
-        .delta_time = dt,
+        .delta_time = c.sapp_frame_duration(),
     };
     c.simgui_new_frame(&frame);
 
@@ -106,7 +101,7 @@ export fn update() void {
     } else {
         c.igText("Hello, world!");
         _ = c.igSliderFloat("float", &f, 0.0, 1.0, "%.3f", 1.0);
-        _ = c.igColorEdit3("clear color", @ptrCast(*f32,&state.pass_action.colors[0].value), 0);
+        _ = c.igColorEdit3("clear color", @ptrCast(*f32, &state.pass_action.colors[0].value), 0);
         if (c.igButton("Test Window", c.ImVec2{ .x = 0.0, .y = 0.0 })) show_test_window = !show_test_window;
         if (c.igButton("Another Window", c.ImVec2{ .x = 0.0, .y = 0.0 })) show_another_window = !show_another_window;
         c.igText("Application average %.3f ms/frame (%.1f FPS)", 1000.0 / c.igGetIO().*.Framerate, c.igGetIO().*.Framerate);
@@ -150,8 +145,8 @@ export fn event(e: [*c]const c.sapp_event) void {
 
 pub fn main() void {
     var app_desc = zero_struct(c.sapp_desc);
-    app_desc.width = 640;
-    app_desc.height = 480;
+    app_desc.width = 800;
+    app_desc.height = 600;
     app_desc.init_cb = init;
     app_desc.frame_cb = update;
     app_desc.cleanup_cb = cleanup;
