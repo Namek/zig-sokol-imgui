@@ -15,7 +15,11 @@ pub fn serialize_imgui(variable: anytype, name: []const u8) void {
             c.igText("%s:%s = %i", &c_variable_name[0], &c_type_name[0], @intCast(c_int, variable));
         },
         .Float => {
-            c.igText("%s:%s = %f", &c_variable_name[0], &c_type_name[0], variable);
+            var txt = std.fmt.allocPrintZ(allocator, "{s}:{s} = {d}", .{name, type_name, variable}) catch unreachable;
+            defer allocator.free(txt);
+            c.igText(txt);
+            // Note: the code below shoes garbage values for the float type!
+            // c.igText("%s:%s = %f", &c_variable_name[0], &c_type_name[0], variable);
         },
         .Void => {},
         .Bool => {
