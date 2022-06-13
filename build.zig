@@ -6,57 +6,47 @@ const LibExeObjStep = std.build.LibExeObjStep;
 const CrossTarget = std.zig.CrossTarget;
 const Mode = std.builtin.Mode;
 
-const build_root = "../build/";
-const cache_root = "../build/cache/";
+const freetype = @import("deps/mach-freetype/build.zig");
 
 const is_windows = builtin.os.tag == .windows;
 
 pub fn build(b: *Builder) void {
-    b.build_root = build_root;
-    b.cache_root = cache_root;
     b.release_mode = .Debug;
 
     const mode = b.standardReleaseOptions();
     const target = b.standardTargetOptions(.{});
     const cross_compiling_to_darwin = target.isDarwin() and (target.getOsTag() != builtin.os.tag);
 
-    var exe = b.addExecutable("app", "../code/main.zig");
+    var exe = b.addExecutable("app", "main.zig");
     exe.setTarget(target);
-    exe.setOutputDir(build_root);
-    exe.addIncludeDir("../code/");
+    exe.addIncludeDir("");
     exe.setBuildMode(mode);
-    // exe.addCSourceFile("../code/sokol_compile.c", &[_][]const u8{});
+        
+    exe.defineCMacro("IMGUI_ENABLE_FREETYPE", "1");
+    exe.defineCMacro("CIMGUI_FREETYPE", "1");
+    exe.defineCMacro("IMGUI_FREETYPE", "1");
+    exe.addSystemIncludeDir("deps/mach-freetype/upstream/freetype/include");
+    exe.linkLibrary(libSokol(b, target, mode, cross_compiling_to_darwin, ""));
+    freetype.link(b, exe, .{});
 
-    exe.addIncludeDir("cimgui");
-    exe.addIncludeDir("cimgui/imgui");
+    exe.addIncludeDir("deps/cimgui/imgui");
+    exe.addSystemIncludeDir("deps/cimgui/imgui");
+    exe.addIncludeDir("deps/cimgui");
+    exe.addSystemIncludeDir("deps/cimgui");
     exe.addCSourceFiles(&[_][]const u8{
-        "../code/cimgui/cimgui.cpp",
-        "../code/cimgui/imgui/imgui.cpp",
-        "../code/cimgui/imgui/imgui_demo.cpp",
-        "../code/cimgui/imgui/imgui_draw.cpp",
-        "../code/cimgui/imgui/imgui_widgets.cpp",
-        "../code/cimgui/imgui/imgui_tables.cpp",
+        "deps/cimgui/cimgui.cpp",
+        "deps/cimgui/imgui/imgui.cpp",
+        "deps/cimgui/imgui/imgui_demo.cpp",
+        "deps/cimgui/imgui/imgui_draw.cpp",
+        "deps/cimgui/imgui/imgui_widgets.cpp",
+        "deps/cimgui/imgui/imgui_tables.cpp",
+        "deps/cimgui/imgui/misc/freetype/imgui_freetype.cpp",
     }, &[_][]const u8{});
-
+    exe.addPackage(freetype.pkg);
     exe.linkLibCpp();
-    exe.linkLibrary(libSokol(b, target, mode, cross_compiling_to_darwin, "../code/"));
     if (cross_compiling_to_darwin) {
         addDarwinCrossCompilePaths(b, exe);
     }
-
-    // if (is_windows) {
-    //     // exe.addObjectFile("cimgui.obj");
-    //     // exe.addObjectFile("imgui.obj");
-    //     // exe.addObjectFile("imgui_demo.obj");
-    //     // exe.addObjectFile("imgui_draw.obj");
-    //     // exe.addObjectFile("imgui_widgets.obj");
-    //     exe.linkSystemLibrary("user32");
-    //     exe.linkSystemLibrary("gdi32");
-    // } else {
-    //     // exe.linkSystemLibrary("GL");
-    //     // exe.linkSystemLibrary("GLEW");
-    // }
-
     exe.install();
     b.step("run", "Run the program").dependOn(&exe.run().step);
 }

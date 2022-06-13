@@ -9,6 +9,9 @@
 #include "sokol/sokol_gfx.h"
 #include "sokol/sokol_time.h"
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
-#include "cimgui/cimgui.h"
+// #define IMGUI_ENABLE_FREETYPE
+// #define CIMGUI_FREETYPE
+// #define IMGUI_FREETYPE
+#include "deps/cimgui/cimgui.h"
 #define SOKOL_IMGUI_IMPL
 #include "sokol/util/sokol_imgui.h"

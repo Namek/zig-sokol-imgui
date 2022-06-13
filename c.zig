@@ -5,6 +5,6 @@ pub usingnamespace @cImport({
     @cInclude("sokol/sokol_gfx.h");
     @cInclude("sokol/sokol_time.h");
     @cDefine("CIMGUI_DEFINE_ENUMS_AND_STRUCTS", "");
-    @cInclude("cimgui/cimgui.h");
+    @cInclude("deps/cimgui/cimgui.h");
     @cInclude("sokol/util/sokol_imgui.h");
 });

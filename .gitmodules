@@ -1,0 +1,6 @@
+[submodule "deps/cimgui"]
+	path = deps/cimgui
+	url = https://github.com/Namek/cimgui
+[submodule "deps/mach-freetype"]
+	path = deps/mach-freetype
+	url = https://github.com/Namek/mach-freetype

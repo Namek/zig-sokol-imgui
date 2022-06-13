@@ -17,6 +17,7 @@ const State = struct {
 };
 
 var state: State = undefined;
+var font: *c.ImFont = undefined;
 
 export fn init() void {
     var desc = zero_struct(c.sg_desc);
@@ -26,10 +27,34 @@ export fn init() void {
     c.stm_setup();
 
     var imgui_desc = zero_struct(c.simgui_desc_t);
+    // imgui_desc.no_default_font = true;
+    imgui_desc.disable_paste_override = false;
     c.simgui_setup(&imgui_desc);
 
+    // var io = c.igGetIO().*;
+    // var text_pixels: [*c]u8 = undefined;
+    // var text_w: i32 = undefined;
+    // var text_h: i32 = undefined;
+    // c.ImFontAtlas_GetTexDataAsRGBA32(io.Fonts, &text_pixels, &text_w, &text_h, null);
+    // font = c.ImFontAtlas_AddFontFromFileTTF(io.Fonts, "C:/dev/zig-sokol-imgui/deps/cimgui/imgui/misc/fonts/DroidSans.ttf", 15.0, null, c.ImFontAtlas_GetGlyphRangesDefault(io.Fonts));
+    // var img_desc = c.sg_image_desc{};
+    // _simgui_clear(&img_desc, sizeof(img_desc));
+    // img_desc.width = font_width;
+    // img_desc.height = font_height;
+    // img_desc.pixel_format = SG_PIXELFORMAT_RGBA8;
+    // img_desc.wrap_u = SG_WRAP_CLAMP_TO_EDGE;
+    // img_desc.wrap_v = SG_WRAP_CLAMP_TO_EDGE;
+    // img_desc.min_filter = SG_FILTER_LINEAR;
+    // img_desc.mag_filter = SG_FILTER_LINEAR;
+    // img_desc.data.subimage[0][0].ptr = font_pixels;
+    // img_desc.data.subimage[0][0].size = (size_t)(font_width * font_height) * sizeof(uint32_t);
+    // img_desc.label = "sokol-imgui-font";
+    // _simgui.img = sg_make_image(&img_desc);
+    // io->Fonts->TexID = (ImTextureID)(uintptr_t) _simgui.img.id;
+    // _ = c.ImFontAtlas_Build(io.Fonts);
+
     state.pass_action.colors[0].action = c.SG_ACTION_CLEAR;
-    state.pass_action.colors[0].value = c.sg_color{ .r=0.2, .g=0.2, .b=0.2, .a=1.0 };
+    state.pass_action.colors[0].value = c.sg_color{ .r = 0.2, .g = 0.2, .b = 0.2, .a = 1.0 };
 
     const vertices = [_]f32{
         // positions     // colors
@@ -47,17 +72,17 @@ export fn init() void {
     state.main_bindings.vertex_buffers[0] = c.sg_make_buffer(&buffer_desc);
 
     var shader_desc = zero_struct(c.sg_shader_desc);
-    shader_desc.vs.source = switch(c.sg_query_backend()) {
+    shader_desc.vs.source = switch (c.sg_query_backend()) {
         // .D3D11       => @embedFile("shaders/offscreen_vs.hlsl"),
-        c.SG_BACKEND_GLCORE33    => @embedFile("shaders/vs.v330.glsl"),
-        c.SG_BACKEND_GLES2       => @embedFile("shaders/vs.v100.glsl"),
+        c.SG_BACKEND_GLCORE33 => @embedFile("shaders/vs.v330.glsl"),
+        c.SG_BACKEND_GLES2 => @embedFile("shaders/vs.v100.glsl"),
         c.SG_BACKEND_METAL_MACOS, c.SG_BACKEND_METAL_SIMULATOR => @embedFile("shaders/vs.metal"),
         else => unreachable,
     };
-    shader_desc.fs.source = switch(c.sg_query_backend()) {
+    shader_desc.fs.source = switch (c.sg_query_backend()) {
         // .D3D11       => @embedFile("shaders/offscreen_fs.hlsl"),
-        c.SG_BACKEND_GLCORE33    => @embedFile("shaders/fs.v330.glsl"),
-        c.SG_BACKEND_GLES2       => @embedFile("shaders/fs.v100.glsl"),
+        c.SG_BACKEND_GLCORE33 => @embedFile("shaders/fs.v330.glsl"),
+        c.SG_BACKEND_GLES2 => @embedFile("shaders/fs.v100.glsl"),
         c.SG_BACKEND_METAL_MACOS, c.SG_BACKEND_METAL_SIMULATOR => @embedFile("shaders/fs.metal"),
         else => unreachable,
     };
@@ -78,6 +103,7 @@ var show_another_window: bool = false;
 var display_menu: bool = false;
 
 var f: f32 = 0.0;
+var inputTextBuf: [1024]u8 = undefined;
 
 export fn update() void {
     const width = c.sapp_width();
@@ -89,17 +115,18 @@ export fn update() void {
         .delta_time = c.sapp_frame_duration(),
     };
     c.simgui_new_frame(&frame);
-
+    c.igPushFont(font);
     if (display_menu) {
         c.igSetNextWindowPos(zero_struct(c.ImVec2), 0, zero_struct(c.ImVec2));
         c.igSetNextWindowSize(c.ImVec2{ .x = @intToFloat(f32, width), .y = @intToFloat(f32, height) }, 0);
 
-        _ = c.igBegin("Window", null, (c.ImGuiWindowFlags_NoTitleBar) | (c.ImGuiWindowFlags_NoBringToFrontOnFocus) | (c.ImGuiWindowFlags_NoResize) |(c.ImGuiWindowFlags_NoMove) | (c.ImGuiWindowFlags_AlwaysAutoResize));
+        _ = c.igBegin("Window", null, (c.ImGuiWindowFlags_NoTitleBar) | (c.ImGuiWindowFlags_NoBringToFrontOnFocus) | (c.ImGuiWindowFlags_NoResize) | (c.ImGuiWindowFlags_NoMove) | (c.ImGuiWindowFlags_AlwaysAutoResize));
         _ = serialize.serialize_imgui(state, "state");
 
         c.igEnd();
     } else {
         c.igText("Hello, world!");
+        _ = c.igInputText("Input text", &inputTextBuf, inputTextBuf.len, 0, null, null);
         _ = c.igSliderFloat("float", &f, 0.0, 1.0, "%.3f", 1.0);
         _ = c.igColorEdit3("clear color", @ptrCast(*f32, &state.pass_action.colors[0].value), 0);
         if (c.igButton("Test Window", c.ImVec2{ .x = 0.0, .y = 0.0 })) show_test_window = !show_test_window;
@@ -123,6 +150,7 @@ export fn update() void {
     c.sg_apply_pipeline(state.main_pipeline);
     c.sg_apply_bindings(&state.main_bindings);
     c.sg_draw(0, 3, 1);
+    c.igPopFont();
     c.simgui_render();
     c.sg_end_pass();
     c.sg_commit();
@@ -134,12 +162,14 @@ export fn cleanup() void {
 }
 
 export fn event(e: [*c]const c.sapp_event) void {
+    const evt = e[0];
     _ = c.simgui_handle_event(e);
+    // std.debug.print("{any} {any} {any}\n", .{evt, evt.type, evt.key_code});
 
-    if (e[0].type == c.SAPP_EVENTTYPE_KEY_DOWN) {
-        switch (e[0].key_code) {
+    if (evt.type == c.SAPP_EVENTTYPE_KEY_DOWN) {
+        switch (evt.key_code) {
             c.SAPP_KEYCODE_TAB => display_menu = !display_menu,
-            c.SAPP_KEYCODE_ESCAPE => std.os.exit(0),
+            c.SAPP_KEYCODE_ESCAPE => c.sapp_quit(),
             else => {},
         }
     }
