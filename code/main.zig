@@ -136,10 +136,12 @@ export fn cleanup() void {
 export fn event(e: [*c]const c.sapp_event) void {
     _ = c.simgui_handle_event(e);
 
-    if (e[0].type == c.SAPP_EVENTTYPE_KEY_DOWN and
-        e[0].key_code == c.SAPP_KEYCODE_TAB)
-    {
-        display_menu = !display_menu;
+    if (e[0].type == c.SAPP_EVENTTYPE_KEY_DOWN) {
+        switch (e[0].key_code) {
+            c.SAPP_KEYCODE_TAB => display_menu = !display_menu,
+            c.SAPP_KEYCODE_ESCAPE => std.os.exit(0),
+            else => {},
+        }
     }
 }
 
