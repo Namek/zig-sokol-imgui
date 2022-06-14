@@ -15,36 +15,22 @@ fn thisDir() []const u8 {
 
 const State = struct {
     pass_action: c.sg_pass_action,
-    main_pipeline: c.sg_pipeline,
-    main_bindings: c.sg_bindings,
+    fontMono: *c.ImFont,
+    fontSans: *c.ImFont,
 };
 
 var state: State = undefined;
-var font: *c.ImFont = undefined;
 
-export fn init() void {
-    var desc = zero_struct(c.sg_desc);
-    desc.context = c.sapp_sgcontext();
-    c.sg_setup(&desc);
-
-    c.stm_setup();
-
-    var imgui_desc = zero_struct(c.simgui_desc_t);
-    imgui_desc.no_default_font = true;
-    c.simgui_setup(&imgui_desc);
-
+fn buildFont(font_path: [*c]const u8, font_size: u32, dpi_scale: f32, rasterizer_multiply: f32) *c.ImFont {
     var io = c.igGetIO().*;
-    var style = c.igGetStyle();
-    c.igStyleColorsLight(style);
-
     var fontCfg = c.ImFontConfig_ImFontConfig().*;
-    // fontCfg.OversampleH = 2;
-    // fontCfg.OversampleV = 2;
-    // fontCfg.RasterizerMultiply = 1.25;
-    fontCfg.SizePixels = 18;
-    const font_path = thisDir() ++ "/deps/cimgui/imgui/misc/fonts/DroidSans.ttf";
+    fontCfg.OversampleH = 1;
+    fontCfg.OversampleV = 1;
+    fontCfg.RasterizerMultiply = rasterizer_multiply;
+    // fontCfg.FontBuilderFlags = c.ImGuiFreeTypeBuilderFlags_NoHinting | c.ImGuiFreeTypeBuilderFlags_Bitmap;
+    fontCfg.SizePixels = @intToFloat(f32, font_size) * dpi_scale;
 
-    font = c.ImFontAtlas_AddFontFromFileTTF(io.Fonts, font_path, 0, &fontCfg, c.ImFontAtlas_GetGlyphRangesDefault(io.Fonts));
+    var font = c.ImFontAtlas_AddFontFromFileTTF(io.Fonts, font_path, 0, &fontCfg, c.ImFontAtlas_GetGlyphRangesDefault(io.Fonts));
     _ = c.ImFontAtlas_Build(io.Fonts);
 
     var font_pixels: [*c]u8 = undefined;
@@ -57,56 +43,37 @@ export fn init() void {
     img_desc.pixel_format = c.SG_PIXELFORMAT_RGBA8;
     img_desc.wrap_u = c.SG_WRAP_CLAMP_TO_EDGE;
     img_desc.wrap_v = c.SG_WRAP_CLAMP_TO_EDGE;
-    img_desc.min_filter = c.SG_FILTER_NEAREST;
-    img_desc.mag_filter = c.SG_FILTER_NEAREST;
+    img_desc.min_filter = c.SG_FILTER_LINEAR;
+    img_desc.mag_filter = c.SG_FILTER_LINEAR;
     img_desc.data.subimage[0][0].ptr = font_pixels;
     img_desc.data.subimage[0][0].size = @intCast(usize, font_width * font_height * 4);
     img_desc.label = "custom-font";
     const img = c.sg_make_image(&img_desc);
     io.Fonts.*.TexID = @intToPtr(*anyopaque, img.id);
 
+    return font;
+}
+
+export fn init() void {
+    var desc = zero_struct(c.sg_desc);
+    desc.context = c.sapp_sgcontext();
+    c.sg_setup(&desc);
+
+    c.stm_setup();
+
+    var imgui_desc = zero_struct(c.simgui_desc_t);
+    imgui_desc.no_default_font = true;
+    c.simgui_setup(&imgui_desc);
+
+    const dpi_scale = c.sapp_dpi_scale();
+    var style = c.igGetStyle();
+    c.igStyleColorsLight(style);
+    c.ImGuiStyle_ScaleAllSizes(style, dpi_scale);
+
+    state.fontMono = buildFont(thisDir() ++ "/assets/fonts/Inconsolata-Regular.ttf", 16, dpi_scale, 1.0);
+    state.fontSans = buildFont(thisDir() ++ "/assets/fonts/NotoSans-Light.ttf", 18, dpi_scale, 1.0);
     state.pass_action.colors[0].action = c.SG_ACTION_CLEAR;
     state.pass_action.colors[0].value = c.sg_color{ .r = 0.2, .g = 0.2, .b = 0.2, .a = 1.0 };
-
-    const vertices = [_]f32{
-        // positions     // colors
-        0.0,  0.5,  0.5, 1.0, 0.0, 0.0, 1.0,
-        0.5,  -0.5, 0.5, 0.0, 1.0, 0.0, 1.0,
-        -0.5, -0.5, 0.5, 0.0, 0.0, 1.0, 1.0,
-    };
-
-    var buffer_desc = zero_struct(c.sg_buffer_desc);
-    buffer_desc.size = vertices.len * @sizeOf(f32);
-    buffer_desc.data.ptr = &vertices[0];
-    buffer_desc.data.size = @sizeOf(@TypeOf(vertices));
-    buffer_desc.type = c.SG_BUFFERTYPE_VERTEXBUFFER;
-    buffer_desc.label = "triangle_vertices";
-    state.main_bindings.vertex_buffers[0] = c.sg_make_buffer(&buffer_desc);
-
-    var shader_desc = zero_struct(c.sg_shader_desc);
-    shader_desc.vs.source = switch (c.sg_query_backend()) {
-        // .D3D11       => @embedFile("shaders/offscreen_vs.hlsl"),
-        c.SG_BACKEND_GLCORE33 => @embedFile("shaders/vs.v330.glsl"),
-        c.SG_BACKEND_GLES2 => @embedFile("shaders/vs.v100.glsl"),
-        c.SG_BACKEND_METAL_MACOS, c.SG_BACKEND_METAL_SIMULATOR => @embedFile("shaders/vs.metal"),
-        else => unreachable,
-    };
-    shader_desc.fs.source = switch (c.sg_query_backend()) {
-        // .D3D11       => @embedFile("shaders/offscreen_fs.hlsl"),
-        c.SG_BACKEND_GLCORE33 => @embedFile("shaders/fs.v330.glsl"),
-        c.SG_BACKEND_GLES2 => @embedFile("shaders/fs.v100.glsl"),
-        c.SG_BACKEND_METAL_MACOS, c.SG_BACKEND_METAL_SIMULATOR => @embedFile("shaders/fs.metal"),
-        else => unreachable,
-    };
-
-    const shader = c.sg_make_shader(&shader_desc);
-
-    var pipeline_desc = zero_struct(c.sg_pipeline_desc);
-    pipeline_desc.layout.attrs[0].format = c.SG_VERTEXFORMAT_FLOAT3;
-    pipeline_desc.layout.attrs[1].format = c.SG_VERTEXFORMAT_FLOAT4;
-    pipeline_desc.shader = shader;
-    pipeline_desc.label = "main_pipeline";
-    state.main_pipeline = c.sg_make_pipeline(&pipeline_desc);
 }
 
 var last_time: u64 = 0;
@@ -117,17 +84,18 @@ var display_menu: bool = false;
 var f: f32 = 0.0;
 var inputTextBuf: [1024]u8 = undefined;
 
+
 export fn update() void {
     const width = c.sapp_width();
     const height = c.sapp_height();
     var frame = c.simgui_frame_desc_t{
-        .dpi_scale = 1,
+        .dpi_scale = 1,//c.sapp_dpi_scale(),
         .width = width,
         .height = height,
         .delta_time = c.sapp_frame_duration(),
     };
     c.simgui_new_frame(&frame);
-    c.igPushFont(font);
+
     if (display_menu) {
         c.igSetNextWindowPos(zero_struct(c.ImVec2), 0, zero_struct(c.ImVec2));
         c.igSetNextWindowSize(c.ImVec2{ .x = @intToFloat(f32, width), .y = @intToFloat(f32, height) }, 0);
@@ -137,8 +105,11 @@ export fn update() void {
 
         c.igEnd();
     } else {
+        c.igPushFont(state.fontSans);
+
+        _ = c.igShowStyleSelector("Colors##Selector");
         c.igText("Hello, world!");
-        _ = c.igInputText("Input text", &inputTextBuf, inputTextBuf.len, 0, null, null);
+        _ = c.igInputText("##", &inputTextBuf, inputTextBuf.len, 0, null, null);
         _ = c.igSliderFloat("float", &f, 0.0, 1.0, "%.3f", 1.0);
         _ = c.igColorEdit3("clear color", @ptrCast(*f32, &state.pass_action.colors[0].value), 0);
         if (c.igButton("Test Window", c.ImVec2{ .x = 0.0, .y = 0.0 })) show_test_window = !show_test_window;
@@ -156,13 +127,10 @@ export fn update() void {
             c.igSetNextWindowPos(c.ImVec2{ .x = 460, .y = 20 }, @intCast(c_int, c.ImGuiCond_FirstUseEver), c.ImVec2{ .x = 0, .y = 0 });
             c.igShowDemoWindow(0);
         }
-    }
 
+        c.igPopFont();
+    }
     c.sg_begin_default_pass(&state.pass_action, width, height);
-    c.sg_apply_pipeline(state.main_pipeline);
-    c.sg_apply_bindings(&state.main_bindings);
-    c.sg_draw(0, 3, 1);
-    c.igPopFont();
     c.simgui_render();
     c.sg_end_pass();
     c.sg_commit();
