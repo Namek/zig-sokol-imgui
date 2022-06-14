@@ -9,6 +9,10 @@ fn zero_struct(comptime T: type) T {
     return variable;
 }
 
+fn thisDir() []const u8 {
+    return std.fs.path.dirname(@src().file) orelse ".";
+}
+
 const State = struct {
     pass_action: c.sg_pass_action,
     main_pipeline: c.sg_pipeline,
@@ -26,31 +30,40 @@ export fn init() void {
     c.stm_setup();
 
     var imgui_desc = zero_struct(c.simgui_desc_t);
-    // imgui_desc.no_default_font = true;
-    imgui_desc.disable_paste_override = false;
+    imgui_desc.no_default_font = true;
     c.simgui_setup(&imgui_desc);
 
-    // var io = c.igGetIO().*;
-    // var text_pixels: [*c]u8 = undefined;
-    // var text_w: i32 = undefined;
-    // var text_h: i32 = undefined;
-    // c.ImFontAtlas_GetTexDataAsRGBA32(io.Fonts, &text_pixels, &text_w, &text_h, null);
-    // font = c.ImFontAtlas_AddFontFromFileTTF(io.Fonts, "C:/dev/zig-sokol-imgui/deps/cimgui/imgui/misc/fonts/DroidSans.ttf", 15.0, null, c.ImFontAtlas_GetGlyphRangesDefault(io.Fonts));
-    // var img_desc = c.sg_image_desc{};
-    // _simgui_clear(&img_desc, sizeof(img_desc));
-    // img_desc.width = font_width;
-    // img_desc.height = font_height;
-    // img_desc.pixel_format = SG_PIXELFORMAT_RGBA8;
-    // img_desc.wrap_u = SG_WRAP_CLAMP_TO_EDGE;
-    // img_desc.wrap_v = SG_WRAP_CLAMP_TO_EDGE;
-    // img_desc.min_filter = SG_FILTER_LINEAR;
-    // img_desc.mag_filter = SG_FILTER_LINEAR;
-    // img_desc.data.subimage[0][0].ptr = font_pixels;
-    // img_desc.data.subimage[0][0].size = (size_t)(font_width * font_height) * sizeof(uint32_t);
-    // img_desc.label = "sokol-imgui-font";
-    // _simgui.img = sg_make_image(&img_desc);
-    // io->Fonts->TexID = (ImTextureID)(uintptr_t) _simgui.img.id;
-    // _ = c.ImFontAtlas_Build(io.Fonts);
+    var io = c.igGetIO().*;
+    var style = c.igGetStyle();
+    c.igStyleColorsLight(style);
+
+    var fontCfg = c.ImFontConfig_ImFontConfig().*;
+    // fontCfg.OversampleH = 2;
+    // fontCfg.OversampleV = 2;
+    // fontCfg.RasterizerMultiply = 1.25;
+    fontCfg.SizePixels = 18;
+    const font_path = thisDir() ++ "/deps/cimgui/imgui/misc/fonts/DroidSans.ttf";
+
+    font = c.ImFontAtlas_AddFontFromFileTTF(io.Fonts, font_path, 0, &fontCfg, c.ImFontAtlas_GetGlyphRangesDefault(io.Fonts));
+    _ = c.ImFontAtlas_Build(io.Fonts);
+
+    var font_pixels: [*c]u8 = undefined;
+    var font_width: i32 = undefined;
+    var font_height: i32 = undefined;
+    c.ImFontAtlas_GetTexDataAsRGBA32(io.Fonts, &font_pixels, &font_width, &font_height, null);
+    var img_desc = zero_struct(c.sg_image_desc);
+    img_desc.width = font_width;
+    img_desc.height = font_height;
+    img_desc.pixel_format = c.SG_PIXELFORMAT_RGBA8;
+    img_desc.wrap_u = c.SG_WRAP_CLAMP_TO_EDGE;
+    img_desc.wrap_v = c.SG_WRAP_CLAMP_TO_EDGE;
+    img_desc.min_filter = c.SG_FILTER_NEAREST;
+    img_desc.mag_filter = c.SG_FILTER_NEAREST;
+    img_desc.data.subimage[0][0].ptr = font_pixels;
+    img_desc.data.subimage[0][0].size = @intCast(usize, font_width * font_height * 4);
+    img_desc.label = "custom-font";
+    const img = c.sg_make_image(&img_desc);
+    io.Fonts.*.TexID = @intToPtr(*anyopaque, img.id);
 
     state.pass_action.colors[0].action = c.SG_ACTION_CLEAR;
     state.pass_action.colors[0].value = c.sg_color{ .r = 0.2, .g = 0.2, .b = 0.2, .a = 1.0 };
@@ -182,6 +195,7 @@ pub fn main() void {
     app_desc.frame_cb = update;
     app_desc.cleanup_cb = cleanup;
     app_desc.event_cb = event;
+    app_desc.high_dpi = true;
 
     _ = c.sapp_run(&app_desc);
 }
