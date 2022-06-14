@@ -8,6 +8,7 @@
 #include "sokol/sokol_app.h"
 #include "sokol/sokol_gfx.h"
 #include "sokol/sokol_time.h"
+#include "sokol/sokol_glue.h"
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
 // #define IMGUI_ENABLE_FREETYPE
 // #define CIMGUI_FREETYPE

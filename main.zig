@@ -1,6 +1,5 @@
 const std = @import("std");
 
-const app_gfx_glue = @import("app_gfx_glue.zig");
 const c = @import("c.zig");
 const serialize = @import("serialize.zig");
 
@@ -21,7 +20,7 @@ var font: *c.ImFont = undefined;
 
 export fn init() void {
     var desc = zero_struct(c.sg_desc);
-    desc.context = app_gfx_glue.context();
+    desc.context = c.sapp_sgcontext();
     c.sg_setup(&desc);
 
     c.stm_setup();
