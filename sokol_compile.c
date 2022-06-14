@@ -1,8 +1,8 @@
 #define SOKOL_IMPL
-#if defined(_WIN32)
-    #define SOKOL_GLCORE33
-#elif defined(__APPLE__)
+#if defined(__APPLE__)
     #define SOKOL_METAL
+#else
+    #define SOKOL_GLCORE33
 #endif
 #define SOKOL_NO_ENTRY
 #include "sokol/sokol_app.h"
