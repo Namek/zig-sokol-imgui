@@ -164,6 +164,7 @@ pub fn main() void {
     app_desc.cleanup_cb = cleanup;
     app_desc.event_cb = event;
     app_desc.high_dpi = true;
+    app_desc.enable_clipboard = true;
 
     _ = c.sapp_run(&app_desc);
 }

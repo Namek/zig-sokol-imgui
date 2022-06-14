@@ -4,3 +4,6 @@
 [submodule "deps/mach-freetype"]
 	path = deps/mach-freetype
 	url = https://github.com/Namek/mach-freetype
+[submodule "deps/sokol"]
+	path = deps/sokol
+	url = https://github.com/Namek/sokol
